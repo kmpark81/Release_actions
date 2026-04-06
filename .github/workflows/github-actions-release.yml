@@ -53,8 +53,13 @@ jobs:
 
           $sourceSha = (git rev-parse HEAD).Trim()
           $sourceShortSha = (git rev-parse --short HEAD).Trim()
+          # HEAD에 직접 달린 태그가 없으면 가장 최근 태그를 조회하고,
+          # 그것도 없으면 N/A로 명시해 릴리즈 본문에서 빈 값이 나오지 않도록 합니다.
           $sourceTag = (git tag --points-at HEAD | Select-Object -First 1)
-          if (-not $sourceTag) { $sourceTag = "" }
+          if (-not $sourceTag) {
+            $sourceTag = (git describe --tags --abbrev=0 2>$null)
+          }
+          if (-not $sourceTag) { $sourceTag = "N/A" }
 
           Add-Content -Path $env:GITHUB_ENV -Value "SOURCE_REPO=${{ github.repository }}"
           Add-Content -Path $env:GITHUB_ENV -Value "SOURCE_BRANCH=$env:GITHUB_REF_NAME"
@@ -112,23 +117,6 @@ jobs:
           Write-Host "[tag validate] RELEASE_TAG=$env:RELEASE_TAG"
           git check-ref-format "refs/tags/$env:RELEASE_TAG"
 
-      # 소스(개발) 저장소에도 동일 태그를 생성/푸시합니다.
-      # 이미 존재하는 태그는 중복 생성하지 않습니다.
-      - name: Create and push source repo tag (idempotent)
-        shell: powershell
-        run: |
-          git fetch --tags
-          $exists = git rev-parse -q --verify "refs/tags/$env:RELEASE_TAG" 2>$null
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "[source tag] already exists: $env:RELEASE_TAG (skip create/push)"
-          }
-          else {
-            Write-Host "[source tag] creating tag: $env:RELEASE_TAG"
-            git tag "$env:RELEASE_TAG"
-            Write-Host "[source tag] pushing tag: $env:RELEASE_TAG"
-            git push origin "$env:RELEASE_TAG"
-          }
-
       # 파이썬 환경 설정 & EXE 빌드 (사전에 준비된 venv 사용)
       - name: Activate venv and Build executable
         run: |
@@ -180,6 +168,24 @@ jobs:
 
           echo [release body preview]
           type release_body.txt
+
+      # 소스(개발) 저장소에도 동일 태그를 생성/푸시합니다.
+      # 태그가 새로 생성될 때는 Release Repo 릴리즈 본문과 동일한 내용(release_body.txt)을
+      # 주석(annotated tag message)으로 넣어 추적성을 맞춥니다.
+      - name: Create and push source repo tag (idempotent)
+        shell: powershell
+        run: |
+          git fetch --tags
+          $exists = git rev-parse -q --verify "refs/tags/$env:RELEASE_TAG" 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "[source tag] already exists: $env:RELEASE_TAG (skip create/push)"
+          }
+          else {
+            Write-Host "[source tag] creating annotated tag with release_body.txt: $env:RELEASE_TAG"
+            git tag -a "$env:RELEASE_TAG" -F "release_body.txt"
+            Write-Host "[source tag] pushing tag: $env:RELEASE_TAG"
+            git push origin "$env:RELEASE_TAG"
+          }
 
       # 릴리즈 저장소에 릴리즈 생성 (name 과 tag_name 분리 운영)
       - name: Create Release and Upload Asset
