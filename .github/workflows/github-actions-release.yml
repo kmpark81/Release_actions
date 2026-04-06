@@ -53,23 +53,14 @@ jobs:
 
           $sourceSha = (git rev-parse HEAD).Trim()
           $sourceShortSha = (git rev-parse --short HEAD).Trim()
-          # HEAD에 직접 달린 태그가 없으면 가장 최근 태그를 조회하고,
-          # 그것도 없으면 N/A로 명시해 릴리즈 본문에서 빈 값이 나오지 않도록 합니다.
-          $sourceTag = (git tag --points-at HEAD | Select-Object -First 1)
-          if (-not $sourceTag) {
-            $sourceTag = (git describe --tags --abbrev=0 2>$null)
-          }
-          if (-not $sourceTag) { $sourceTag = "N/A" }
 
           Add-Content -Path $env:GITHUB_ENV -Value "SOURCE_REPO=${{ github.repository }}"
           Add-Content -Path $env:GITHUB_ENV -Value "SOURCE_BRANCH=$env:GITHUB_REF_NAME"
           Add-Content -Path $env:GITHUB_ENV -Value "SOURCE_SHA=$sourceSha"
           Add-Content -Path $env:GITHUB_ENV -Value "SOURCE_SHORT_SHA=$sourceShortSha"
-          Add-Content -Path $env:GITHUB_ENV -Value "SOURCE_TAG=$sourceTag"
 
           Write-Host "[checkout verify] SOURCE_SHA=$sourceSha"
           Write-Host "[checkout verify] SOURCE_SHORT_SHA=$sourceShortSha"
-          Write-Host "[checkout verify] SOURCE_TAG=$sourceTag"
 
       # release_name 입력값을 앱 내부 버전 문자열로 반영하기 위해 APP_VERSION에 저장합니다.
       - name: Set app version from input
@@ -154,7 +145,6 @@ jobs:
           echo - Source Branch: %SOURCE_BRANCH% >> release_body.txt
           echo - Source Commit SHA: %SOURCE_SHA% >> release_body.txt
           echo - Source Short SHA: %SOURCE_SHORT_SHA% >> release_body.txt
-          echo - Source Tag: %SOURCE_TAG% >> release_body.txt
           echo - Release Tag: %RELEASE_TAG% >> release_body.txt
           if defined PREV_TAG echo - Compare Base Tag: %PREV_TAG% >> release_body.txt
           echo. >> release_body.txt
@@ -170,8 +160,7 @@ jobs:
           type release_body.txt
 
       # 소스(개발) 저장소에도 동일 태그를 생성/푸시합니다.
-      # 태그가 새로 생성될 때는 Release Repo 릴리즈 본문과 동일한 내용(release_body.txt)을
-      # 주석(annotated tag message)으로 넣어 추적성을 맞춥니다.
+      # 태그가 새로 생성될 때는 요청된 최소 메타데이터만 주석(annotated tag message)으로 기록합니다.
       - name: Create and push source repo tag (idempotent)
         shell: powershell
         run: |
@@ -181,8 +170,18 @@ jobs:
             Write-Host "[source tag] already exists: $env:RELEASE_TAG (skip create/push)"
           }
           else {
-            Write-Host "[source tag] creating annotated tag with release_body.txt: $env:RELEASE_TAG"
-            git tag -a "$env:RELEASE_TAG" -F "release_body.txt"
+            $sourceTagMessage = @(
+              "Source Repo: $env:SOURCE_REPO"
+              "Source Branch: $env:SOURCE_BRANCH"
+              "Source Commit SHA: $env:SOURCE_SHA"
+              "Source Short SHA: $env:SOURCE_SHORT_SHA"
+              ""
+              "Release Tag: $env:RELEASE_TAG"
+            ) -join [Environment]::NewLine
+            Set-Content -Path "source_tag_message.txt" -Value $sourceTagMessage -Encoding utf8
+
+            Write-Host "[source tag] creating annotated tag with source_tag_message.txt: $env:RELEASE_TAG"
+            git tag -a "$env:RELEASE_TAG" -F "source_tag_message.txt"
             Write-Host "[source tag] pushing tag: $env:RELEASE_TAG"
             git push origin "$env:RELEASE_TAG"
           }
