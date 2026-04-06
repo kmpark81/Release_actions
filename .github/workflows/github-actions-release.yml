@@ -145,6 +145,12 @@ jobs:
           echo - File이 보이지 않을 경우 Assets를 클릭해 주세요!!! >> release_body.txt
           echo - Source code^(zip^)과 Source code^(tar.gz^)는 자동 생성되는 항목으로 내용이 없는 비어있는 파일입니다. >> release_body.txt
           echo. >> release_body.txt
+
+          echo ## ✅ 변경 사항 >> release_body.txt
+          echo. >> release_body.txt
+          type commits.txt >> release_body.txt
+          echo. >> release_body.txt
+          
           echo ## 🔎 Source Metadata >> release_body.txt
           echo - Source Repo: %SOURCE_REPO% >> release_body.txt
           echo - Source Branch: %SOURCE_BRANCH% >> release_body.txt
@@ -153,10 +159,7 @@ jobs:
           echo - Release Tag: %RELEASE_TAG% >> release_body.txt
           if defined PREV_TAG echo - Compare Base Tag: %PREV_TAG% >> release_body.txt
           echo. >> release_body.txt
-          echo ## ✅ 변경 사항 >> release_body.txt
-          echo. >> release_body.txt
-          type commits.txt >> release_body.txt
-          echo. >> release_body.txt
+          
           echo --- >> release_body.txt
           echo. >> release_body.txt
           echo **INPUT Manual 보러 가기:** https://github.samsungds.net/AT-Automation-Technology/ULTRA_OptFlashDIO_Release >> release_body.txt
@@ -176,6 +179,8 @@ jobs:
           }
           else {
             $sourceTagMessage = @(
+              ""
+              "Source Metadata"
               "Source Repo: $env:SOURCE_REPO"
               "Source Branch: $env:SOURCE_BRANCH"
               "Source Commit SHA: $env:SOURCE_SHA"
