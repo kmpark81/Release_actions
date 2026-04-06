@@ -69,18 +69,6 @@ jobs:
           echo APP_VERSION=${{ inputs.release_name }}>> %GITHUB_ENV%
           echo [version] APP_VERSION=${{ inputs.release_name }}
 
-      # version.py를 저장소 루트에 생성합니다.
-      # 현재 워크플로 기준으로 ATE_Handler\version.py 동기화는 요구사항에서 제외되어 제거했습니다.
-      - name: Create version.py
-        shell: cmd
-        run: |
-          (
-            echo __version__ = r"${{ inputs.release_name }}"
-          ) > version.py
-
-          echo [version] root\version.py
-          type version.py
-
       # 태그는 GitHub Release에서 안전하게 동작하도록 ASCII 안전 문자 위주로 정제합니다.
       # self-hosted Windows runner에서 pwsh 미설치 가능성을 고려해 powershell.exe를 최소 범위로만 사용합니다.
       - name: Build safe tag name
@@ -100,6 +88,23 @@ jobs:
           $tag = "$date-build-$build-$safeVersion"
           Add-Content -Path $env:GITHUB_ENV -Value "RELEASE_TAG=$tag"
           Write-Host "Generated tag: $tag"
+
+      # version.py를 저장소 루트에 생성하고, 앱에서 표시 가능한 Source Metadata를 함께 기록합니다.
+      # 이렇게 기록된 값은 프로그램 About/로그/진단 화면에서 릴리즈 추적 정보로 바로 활용할 수 있습니다.
+      - name: Create version.py with source metadata
+        shell: cmd
+        run: |
+          (
+            echo __version__ = r"${{ inputs.release_name }}"
+            echo __source_repo__ = r"%SOURCE_REPO%"
+            echo __source_branch__ = r"%SOURCE_BRANCH%"
+            echo __source_sha__ = r"%SOURCE_SHA%"
+            echo __source_short_sha__ = r"%SOURCE_SHORT_SHA%"
+            echo __release_tag__ = r"%RELEASE_TAG%"
+          ) > version.py
+
+          echo [version] root\version.py
+          type version.py
 
       # 생성된 태그 포맷을 사전 검증합니다.
       - name: Validate tag name
